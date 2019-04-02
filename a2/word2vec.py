@@ -96,13 +96,23 @@ def negSamplingLossAndGradient(
     # wish to match the autograder and receive points!
     negSampleWordIndices = getNegativeSamples(outsideWordIdx, dataset, K)
     indices = [outsideWordIdx] + negSampleWordIndices
+    filteredOutsideVectors = outsideVectors[indices,:]
+    probs = -filteredOutsideVectors.dot(centerWordVec)
+    probs[0] = -probs[0]
+    probs = sigmoid(probs)
+    loss = -np.sum(np.log(probs))
+    dx = probs - 1 #grad of log sig
+    dx[0] = -dx[0]
+    dx = -dx
+    dx = np.expand_dims(dx, axis=1)
+    gradCenterVec = dx * filteredOutsideVectors
+    gradCenterVec = np.sum(gradCenterVec, axis=0)
+    centerWordVec = np.expand_dims(centerWordVec, axis=1)
 
-    ### YOUR CODE HERE
-
-    ### Please use your implementation of sigmoid in here.
-
-
-    ### END YOUR CODE
+    gradOutsideVecs = np.zeros_like(outsideVectors)
+    filteredOutGrad = dx.dot(centerWordVec.T)
+    for i in range(K+1):
+        gradOutsideVecs[indices[i]] += filteredOutGrad[i]
 
     return loss, gradCenterVec, gradOutsideVecs
 
@@ -140,11 +150,11 @@ def skipgram(currentCenterWord, windowSize, outsideWords, word2Ind,
     c_idx = word2Ind[currentCenterWord]
     o_idx = [word2Ind[o_word] for o_word in outsideWords]
     c_vec = centerWordVectors[c_idx,:]
-    loss_gr = [naiveSoftmaxLossAndGradient(c_vec, i, outsideVectors, dataset) for i in o_idx]
-    loss = np.average([tup[0] for tup in loss_gr])
+    loss_gr = [word2vecLossAndGradient(c_vec, i, outsideVectors, dataset) for i in o_idx]
+    loss = np.sum([tup[0] for tup in loss_gr])
     gradCenterVecs = np.zeros_like(centerWordVectors)
-    gradCenterVecs[c_idx] = np.squeeze(np.average([tup[1] for tup in loss_gr], axis=0))
-    gradOutsideVectors = np.average([tup[2] for tup in loss_gr], axis=0)
+    gradCenterVecs[c_idx] = np.squeeze(np.sum([tup[1] for tup in loss_gr], axis=0))
+    gradOutsideVectors = np.sum([tup[2] for tup in loss_gr], axis=0)
 
     return loss, gradCenterVecs, gradOutsideVectors
 
